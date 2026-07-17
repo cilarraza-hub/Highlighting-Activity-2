@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Highlighter and Categorizer</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+
+    /* top bar for legend + results */
+    .topbar { margin-bottom: 12px; }
+    .legend { margin: 0; padding: 10px; border: 1px solid #ccc; background-color: #fafafa; }
+    #result { margin-top: 8px; min-height: 20px; font-weight: 600; }
+
+    #output { border: 1px solid #ccc; padding: 10px; min-height: 150px; white-space: pre-wrap; cursor: text; }
+    .highlight { padding: 2px; border-radius: 4px; background-color: yellow; cursor: pointer; }
+    .Background { background-color: #FFF4CC !important; }
+    .Compare { background-color: #CCE5FF !important; }
+    .Connect { background-color: #D9FDD3 !important; }
+
+    .category-menu { display: none; position: absolute; background-color: #fff; border: 1px solid #ccc; box-shadow: 2px 2px 6px rgba(0,0,0,.2); z-index: 1000; }
+    .category-menu button { display: block; width: 100%; border: none; background: none; padding: 8px 12px; text-align: left; cursor: pointer; }
+    .category-menu button:hover { background-color: #f0f0f0; }
+
+    .legend-item { display: inline-block; margin-right: 15px; }
+    .legend-color { display: inline-block; width: 16px; height: 16px; vertical-align: middle; margin-right: 5px; border-radius: 4px; }
+    .bg-yellow { background-color: #FFF4CC; }
+    .bg-blue   { background-color: #CCE5FF; }
+    .bg-green  { background-color: #D9FDD3; }
+
+    /* Button + feedback */
+    .btn { display:inline-block; margin-top:12px; padding:10px 14px; border:0; border-radius:8px; background:#1f6feb; color:#fff; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.15); cursor:pointer; }
+    .btn:hover { filter: brightness(1.05); }
+  </style>
+</head>
+<body>
+
+  <!-- Legend + Results above the text -->
+  <div class="topbar">
+    <div class="legend">
+      <strong>Legend:</strong>
+      <span class="legend-item"><span class="legend-color bg-yellow"></span> Background</span>
+      <span class="legend-item"><span class="legend-color bg-blue"></span> Compare</span>
+      <span class="legend-item"><span class="legend-color bg-green"></span> Connect</span>
+    </div>
+
+    <div id="result" aria-live="polite"></div>
+  </div>
+
+  <div id="output" contenteditable="true">
+    <p>However, research suggests that some scholars are more advantaged in capturing citations than others. Analyses across multiple disciplines confirm the presence of a gender citation gap, whereby male scholars achieve a higher number of citations to their work than female scholars in the same fields. While some subfields' citation networks are male-dominated because there are few female scholars to be cited (a "Matthew effect"), women's research may also be less central in the network of scholarly citations, and a "Matilda effect" can emerge (Rossiter 1993), where women's contributions are less recognized or where women's research findings are attributed to other male scholars. Yet there are differences across academic disciplines suggesting that the context within which female scholars publish can matter for the accruing of scholarly citations. Ferber's (1988) analyses of citation patterns in multiple disciplines suggest that the presence of a critical mass of female scholars could help to eliminate the citation gender gap.<br>
+      We use a broader set of articles than previous studies by using a tool for coding the gender of authors in scholarly studies (Teele and Thelen 2017; Sumner 2018). Our analyses show that female authors are significantly more likely than male authors to cite studies by female authors and that mixed gender teams have statistically similar, but slightly higher odds of citing studies by women compared to male author teams. While this relationship is broadly consistent across disciplines and subfields, we also observe that women have much higher odds than men of citing work by women, and that the odds increase as fields become more male-dominated. The baseline average probability that an article reference will be written by a woman varies based on the proportion of women in the discipline or subfield. Our results show that gender diversity across disciplines in the social sciences and within subfields of political science influences the attention and impact of work by female scholars.<br>
+     We start with a basic question about gendered variance in citations: do women faculty receive fewer citations to their journal articles than male faculty? Several disciplines produce evidence of lower citation levels for female scholars compared to male scholars in the same field including economics (Ferber 1988; Ferber and Brun 2011), ecology (Cameron, White, and Gray 2016), political science (Dion and Mitchell 2012; Maliniak, Powers, and Walter 2013; Mitchell, Lange, and Brus 2013; Roberts, Stewart, and Nielsen 2017), library and information sciences (Hakanson 2005), linguistics and sociology (Leahey, Crockett, and Hunter 2008), and health and natural sciences (Aksnes et al. 2011; Beaudry and Lariviere 2016). This is often described as a \"Matthew effect\" whereby men as the predominant publishers in a field receive more citations, stature, and influence in their disciplines (Rossiter 1993; Reece-Evans 2010: 13). Analyses of citation data in other disciplines that have accrued that number of citations. Yet even the h-index came under scrutiny for being biased against female faculty (Symonds et al. 2006; Nosek et al. 2010; Geraci, Balsis, and Busch 2015). Self-citations can increase the h-index score, behavior that is more likely for male scholars (Fowler and Aksnes 2007; King et al. 2016). Hopkins et al. (2013) found that women in biochemistry, water resources, economics, and anthropology had h-indices that were one to four points smaller on average than their male peers. In a study of nearly 1700 social work faculty, a field where 65% of faculty are women, Carter, Smith, and Osteen (2017) showed that men had 3.86 higher h-index scores than women across all ranks, with a larger gap at the full professor rank.</p>
+  </div>
+
+  <div class="category-menu" id="categoryMenu">
+    <button onclick="applyCategory('Background')">Background</button>
+    <button onclick="applyCategory('Compare')">Compare</button>
+    <button onclick="applyCategory('Connect')">Connect</button>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    const menu = document.getElementById('categoryMenu');
+    const resultEl = document.getElementById('result');
+    let lastSpan = null;
+
+    let highlighted = [];
+
+    // Answer keys are the BRACKETED portions only.
+    // Category -> color mapping per updated spec:
+    //   Background = peach (paragraph 1 bracket)
+    //   Connect    = green (paragraph 2 bracket)
+    //   Compare    = blue  (paragraph 3 bracket)
+    const answers = {
+      Background: "Analyses across multiple disciplines confirm the presence of a gender citation gap, whereby male scholars achieve a higher number of citations to their work than female scholars in the same fields. While some subfields' citation networks are male-dominated because there are few female scholars to be cited (a \"Matthew effect\"), women's research may also be less central in the network of scholarly citations, and a \"Matilda effect\" can emerge (Rossiter 1993), where women's contributions are less recognized or where women's research findings are attributed to other male scholars. Yet there are differences across academic disciplines suggesting that the context within which female scholars publish can matter for the accruing of scholarly citations. Ferber's (1988) analyses of citation patterns in multiple disciplines suggest that the presence of a critical mass of female scholars could help to eliminate the citation gender gap.",
+      Connect: "authors in scholarly studies (Teele and Thelen 2017; Sumner 2018). Our analyses show that female authors are significantly more likely than male authors to cite studies by female authors and that mixed gender teams have statistically similar, but slightly higher odds of citing studies by women compared to male author teams. While this relationship is broadly consistent across disciplines and subfields, we also observe that women have much higher odds than men of citing work by women, and that the odds increase as fields become more male-dominated.",
+      Compare: "Several disciplines produce evidence of lower citation levels for female scholars compared to male scholars in the same field including economics (Ferber 1988; Ferber and Brun 2011), ecology (Cameron, White, and Gray 2016), political science (Dion and Mitchell 2012; Maliniak, Powers, and Walter 2013; Mitchell, Lange, and Brus 2013; Roberts, Stewart, and Nielsen 2017), library and information sciences (Hakanson 2005), linguistics and sociology (Leahey, Crockett, and Hunter 2008), and health and natural sciences (Aksnes et al. 2011; Beaudry and Lariviere 2016). This is often described as a \"Matthew effect\" whereby men as the predominant publishers in a field receive more citations, stature, and influence in their disciplines (Rossiter 1993; Reece-Evans 2010: 13)."
+    };
+    let userAnswers = { Background: '', Compare: '', Connect: '' };
+
+    // Normalize for comparison: lowercase, Unicode-normalize, strip all non-alphanumerics.
+    function normalize(text){
+      return (text || '')
+        .toLowerCase()
+        .normalize('NFKC')
+        .replace(/&nbsp;/g,' ')
+        .replace(/[^a-z0-9]+/gi,'');
+    }
+
+    // Create highlight on mouseup
+    output.addEventListener('mouseup', (e) => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      if (!output.contains(container)) return;
+
+      const contents = range.extractContents();
+      const tempText = (contents.textContent || '').trim();
+      if (!tempText) { range.insertNode(contents); sel.removeAllRanges(); return; }
+
+      const span = document.createElement('span');
+      span.className = 'highlight';
+      span.appendChild(contents);
+      span.onclick = showCategoryMenu;
+      range.insertNode(span);
+
+      lastSpan = span;
+      highlighted.push(span.innerHTML);
+
+      sel.removeAllRanges();
+    });
+
+    function showCategoryMenu(event){
+      event.stopPropagation();
+      lastSpan = event.target.closest('.highlight');
+      if (!lastSpan) return;
+      menu.style.display = 'block';
+      menu.style.top = event.pageY + 'px';
+      menu.style.left = event.pageX + 'px';
+    }
+
+    function applyCategory(category){
+      if (!lastSpan) { menu.style.display = 'none'; return; }
+      lastSpan.className = `highlight ${category}`;
+      lastSpan.title = category;
+
+      // Correct if the selection falls ANYWHERE within the bracketed answer for this category.
+      const selectedText = normalize(lastSpan.textContent);
+      const keyText = normalize(answers[category] || '');
+      if (selectedText && keyText && keyText.includes(selectedText)) {
+        userAnswers[category] = lastSpan.textContent;
+        if (resultEl) { resultEl.textContent = 'Correct!'; resultEl.style.color = '#0a8a0a'; }
+      } else {
+        if (resultEl) { resultEl.textContent = 'Try again!'; resultEl.style.color = '#b00020'; }
+      }
+
+      menu.style.display = 'none';
+    }
+
+    // Hide menu on click elsewhere
+    document.body.addEventListener('click', () => { menu.style.display = 'none'; });
+
+    // Double-click to remove highlight
+    output.addEventListener('dblclick', (e) => {
+      const span = e.target.closest('.highlight');
+      if (!span) return;
+      const parent = span.parentNode;
+      const textNode = document.createTextNode(span.textContent);
+      parent.replaceChild(textNode, span);
+    });
+  </script>
+</body>
+</html>
